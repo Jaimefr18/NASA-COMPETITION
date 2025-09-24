@@ -1,0 +1,130 @@
+Boa! Bora montar o **plano passo a passo** 🔥 — assim já ficas com a estrutura clara do que fazer, o que estudar e como montar tanto a IA local (treinada) quanto a IA madura (pré-treinada, tipo Gemini/ChatGPT).
+
+---
+
+# 🚀 Passo a Passo para teu Projeto
+
+## **1. Estrutura do Projeto**
+
+* **Backend (Python + FastAPI)** → já tens. Vai processar os dados satélite.
+* **IA Local (modelo leve e treinado)** → para detectar padrões e extrair features (NDVI médio, tendência, eventos).
+* **IA Externa (LLM maduro)** → para interpretar e sugerir ações com linguagem natural.
+* **Frontend (React ou outro)** → só mostra os resultados + mapa.
+
+Fluxo:
+
+```
+Satélite → Backend → Modelo Local (treinado) → Resumo JSON → LLM (ChatGPT/Gemini) → Resposta curta → Frontend
+```
+
+---
+
+## **2. IA Local (treinada)**
+
+👉 Objetivo: resumir dados numéricos.
+
+### Modelos leves que podes usar:
+
+* `scikit-learn` → ótimo para começar (RandomForest, XGBoost, SVM).
+* `prophet` (Meta/Facebook) → bom para séries temporais (tendência NDVI, blooms).
+* `pytorch-lightning` ou `keras` → se quiseres redes neurais.
+
+📚 Estudar:
+
+* Conceitos de **features em séries temporais** (média, tendência, sazonalidade).
+* Como treinar/testar um modelo com `scikit-learn`.
+* Uso de datasets públicos do Earth Engine para treino.
+
+---
+
+## **3. IA Externa (madura e gratuita)**
+
+👉 Objetivo: transformar dados em linguagem natural.
+
+### Opções gratuitas:
+
+* **Google Gemini Nano / Pro** → no AI Studio (algum uso grátis).
+* **OpenAI GPT-4o mini** → gratuito no ChatGPT (mas API é paga, então começa só pelo front).
+* **Hugging Face API** → vários modelos Llama/Mistral já prontos.
+
+📚 Estudar:
+
+* Como enviar um `prompt` com JSON e pedir resumo.
+* Técnicas de **prompt engineering**:
+
+  * "Resuma em 2 frases."
+  * "Diga só se há risco alto, médio ou baixo."
+
+---
+
+## **4. Híbrido (local + externo)**
+
+* O **modelo local** processa e gera JSON como:
+
+  ```json
+  {
+    "sensor": "landsat",
+    "ndvi_mean": 0.45,
+    "ndvi_trend": "decrescente",
+    "event_detected": true,
+    "event_duration_days": 7
+  }
+  ```
+* O **LLM** recebe isso e responde:
+
+  > "Alto risco de bloom. Sugere monitorar por mais 7 dias."
+
+📚 Estudar:
+
+* **Integração API** (FastAPI → chamar Gemini/ChatGPT).
+* **Tratamento de JSON → texto** para IA externa.
+
+---
+
+## **5. Frontend**
+
+* Mostrar:
+
+  * **Mapa** com eventos detectados.
+  * **Resumo da IA Local** (dados).
+  * **Resposta curta da IA Externa**.
+
+📚 Estudar:
+
+* React + Leaflet (ou Mapbox) para mapa.
+* Como consumir a API FastAPI no frontend.
+
+---
+
+## **6. Próximos Passos Práticos**
+
+1. ✅ **Testar backend com FastAPI** (já fizeste o health check).
+2. 📊 Criar **primeiro modelo local simples** com scikit-learn (ex.: RandomForest para NDVI).
+3. 🔗 Fazer integração com Gemini/ChatGPT para **resposta em linguagem natural**.
+4. 🗺️ Mostrar no mapa + painel no frontend.
+5. 📚 Paralelo: Estudar *time series ML* + *prompt engineering*.
+
+---
+
+## **Resumo**
+
+* **Estudar agora**:
+
+  * `scikit-learn` (ML básico).
+  * Séries temporais (Prophet ou ARIMA).
+  * FastAPI + consumo de APIs externas.
+  * React Leaflet (mapa).
+
+* **Estrutura final**:
+
+  * Local: modelo leve resumindo dados satélite.
+  * Externo: LLM gratuito (Gemini / GPT-4o mini).
+  * Frontend: visualização + resposta curta.
+
+---
+
+👉 Queres que eu já te monte um **exemplo real de código** de como:
+
+* backend gera JSON de features
+* manda para Gemini/ChatGPT
+* e recebe a resposta curta?

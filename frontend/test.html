@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detector de Florações</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; }
+        input { padding: 8px; width: 100%; box-sizing: border-box; }
+        button { background: #007bff; color: white; padding: 10px 15px; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Detector de Florações de Algas</h1>
+    
+    <div class="form-group">
+        <label>Longitude:</label>
+        <input type="number" id="lon" value="-81.5" step="any">
+    </div>
+    
+    <div class="form-group">
+        <label>Latitude:</label>
+        <input type="number" id="lat" value="42.2" step="any">
+    </div>
+    
+    <div class="form-group">
+        <label>Data Início:</label>
+        <input type="date" id="start" value="2023-01-01">
+    </div>
+    
+    <div class="form-group">
+        <label>Data Fim:</label>
+        <input type="date" id="end" value="2023-12-31">
+    </div>
+    
+    <div class="form-group">
+        <label>Raio (km):</label>
+        <input type="number" id="buffer_km" value="2.0" step="0.1">
+    </div>
+    
+    <button onclick="analyze()">Analisar Florações</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function analyze() {
+            const lon = parseFloat(document.getElementById('lon').value);
+            const lat = parseFloat(document.getElementById('lat').value);
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+            const buffer_km = parseFloat(document.getElementById('buffer_km').value);
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Analisando...';
+            
+            try {
+                const response = await fetch('http://localhost:8000/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        lon: lon,
+                        lat: lat,
+                        start: start,
+                        end: end,
+                        buffer_km: buffer_km
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = '<h3>Resultados:</h3>' + 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                resultDiv.innerHTML = 'Erro: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

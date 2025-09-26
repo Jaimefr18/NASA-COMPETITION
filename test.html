@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de Florações - Multi-Sensor com GRACE</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2c3e50; text-align: center; }
+        .sensor-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0;
+        }
+        .sensor-card { 
+            padding: 15px; 
+            border: 2px solid #bdc3c7; 
+            border-radius: 8px; 
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .sensor-card.selected { 
+            border-color: #3498db; 
+            background-color: #ecf0f1;
+        }
+        .sensor-card:hover { transform: translateY(-2px); }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #34495e; }
+        input, select { 
+            padding: 10px; 
+            width: 100%; 
+            box-sizing: border-box; 
+            border: 1px solid #bdc3c7;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button { 
+            background: #3498db; 
+            color: white; 
+            padding: 12px 20px; 
+            border: none; 
+            border-radius: 5px;
+            cursor: pointer; 
+            font-size: 16px;
+            width: 100%;
+            margin: 10px 0;
+        }
+        button:hover { background: #2980b9; }
+        #result { margin-top: 20px; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .status.demo { background: #fff3cd; color: #856404; }
+        .status.real { background: #d4edda; color: #155724; }
+        .sensor-result { 
+            background: #f8f9fa; 
+            margin: 15px 0; 
+            padding: 15px; 
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .event { 
+            background: white; 
+            margin: 10px 0; 
+            padding: 12px; 
+            border-radius: 3px;
+            border-left: 3px solid #e74c3c;
+        }
+        .grace-indicators {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .grace-indicator {
+            padding: 10px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌊 Detector de Florações - Multi-Sensor com GRACE</h1>
+        
+        <div class="status demo" id="statusHeader">
+            <strong>Selecione os sensores para análise</strong>
+        </div>
+        
+        <div class="sensor-grid" id="sensorGrid">
+            <div class="sensor-card" data-sensor="landsat" onclick="toggleSensor(this)">
+                <h3>🛰️ Landsat</h3>
+                <p>Resolução: 30m | NDVI | 16 dias</p>
+            </div>
+            <div class="sensor-card" data-sensor="modis" onclick="toggleSensor(this)">
+                <h3>🌊 MODIS</h3>
+                <p>Clorofila | SST | Diário</p>
+            </div>
+            <div class="sensor-card" data-sensor="viirs" onclick="toggleSensor(this)">
+                <h3>🌙 VIIRS</h3>
+                <p>Detecção noturna | NDVI | Diário</p>
+            </div>
+            <div class="sensor-card" data-sensor="smap" onclick="toggleSensor(this)">
+                <h3>💧 SMAP</h3>
+                <p>Umidade do solo | 3 dias</p>
+            </div>
+            <div class="sensor-card" data-sensor="grace" onclick="toggleSensor(this)">
+                <h3>⚖️ GRACE/GRACE-FO</h3>
+                <p>Massa de água | Anomalias | Mensal</p>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Longitude:</label>
+            <input type="number" id="lon" value="-8.8383" step="any">
+        </div>
+        
+        <div class="form-group">
+            <label>Latitude:</label>
+            <input type="number" id="lat" value="13.2344" step="any">
+        </div>
+        
+        <div class="form-group">
+            <label>Data Início:</label>
+            <input type="date" id="start" value="2020-01-01">
+        </div>
+        
+        <div class="form-group">
+            <label>Data Fim:</label>
+            <input type="date" id="end" value="2024-12-31">
+        </div>
+        
+        <div class="form-group">
+            <label>Raio (km):</label>
+            <input type="number" id="buffer_km" value="50.0" step="0.1">
+        </div>
+        
+        <div class="form-group">
+            <label>Tipo de Análise GRACE:</label>
+            <select id="grace_analysis">
+                <option value="water_mass">Massa de Água Total</option>
+                <option value="groundwater">Água Subterrânea</option>
+                <option value="soil_moisture">Umidade do Solo</option>
+            </select>
+        </div>
+        
+        <button onclick="analyze()">🔍 Analisar com Sensores Selecionados</button>
+        <button onclick="checkStatus()" style="background: #95a5a6;">📊 Status do Sistema</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let selectedSensors = ['landsat', 'modis', 'viirs', 'smap', 'grace'];
+        
+        // Seleciona sensores inicialmente
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.sensor-card').forEach(card => {
+                const sensor = card.getAttribute('data-sensor');
+                if (selectedSensors.includes(sensor)) {
+                    card.classList.add('selected');
+                }
+            });
+        });
+        
+        function toggleSensor(card) {
+            const sensor = card.getAttribute('data-sensor');
+            const index = selectedSensors.indexOf(sensor);
+            
+            if (index > -1) {
+                selectedSensors.splice(index, 1);
+                card.classList.remove('selected');
+            } else {
+                selectedSensors.push(sensor);
+                card.classList.add('selected');
+            }
+        }
+        
+        async function analyze() {
+            if (selectedSensors.length === 0) {
+                alert('Selecione pelo menos um sensor!');
+                return;
+            }
+            
+            const lon = parseFloat(document.getElementById('lon').value);
+            const lat = parseFloat(document.getElementById('lat').value);
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+            const buffer_km = parseFloat(document.getElementById('buffer_km').value);
+            const grace_analysis = document.getElementById('grace_analysis').value;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="status">⏳ Analisando com múltiplos sensores incluindo GRACE...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        lon: lon,
+                        lat: lat,
+                        start: start,
+                        end: end,
+                        buffer_km: buffer_km,
+                        sensors: selectedSensors,
+                        grace_analysis: grace_analysis
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status" style="background:#f8d7da;color:#721c24;">
+                    ❌ Erro: ${error.message}
+                </div>`;
+            }
+        }
+        
+        async function checkStatus() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="status">📡 Verificando status...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>Status do Sistema Multi-Sensor</h3>
+                    <div class="status ${data.earth_engine.working ? 'real' : 'demo'}">
+                        🌍 <strong>Earth Engine:</strong> ${data.earth_engine.working ? 'CONECTADO' : 'MODO DEMO'}
+                    </div>
+                    <div class="sensor-result">
+                        <strong>Sensores Disponíveis:</strong><br>
+                        ${data.sensors.map(sensor => `• ${sensor}`).join('<br>')}
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status" style="background:#f8d7da;color:#721c24;">
+                    ❌ Erro ao verificar status: ${error.message}
+                </div>`;
+            }
+        }
+        
+        function displayResults(data) {
+            const resultDiv = document.getElementById('result');
+            
+            let html = `<h3>📈 Resultados Multi-Sensor com GRACE</h3>`;
+            
+            // Status do sistema
+            const statusHeader = document.getElementById('statusHeader');
+            if (data.earth_engine_status.working) {
+                statusHeader.className = 'status real';
+                statusHeader.innerHTML = '<strong>✅ Earth Engine REAL:</strong> Dados de satélite em tempo real';
+            } else {
+                statusHeader.className = 'status demo';
+                statusHeader.innerHTML = '<strong>🔬 Modo Demonstração:</strong> Dados simulados de alta qualidade';
+            }
+            
+            html += `<div class="status ${data.earth_engine_status.working ? 'real' : 'demo'}">`;
+            html += `🛰️ <strong>Sensores usados:</strong> ${data.sensors_used.join(', ').toUpperCase()}`;
+            html += ` | 📊 <strong>Eventos detectados:</strong> ${data.summary.total_events}`;
+            html += `</div>`;
+            
+            // Dados GRACE específicos
+            if (data.data.grace) {
+                html += `<h4>⚖️ Dados GRACE/GRACE-FO</h4>`;
+                html += `<div class="sensor-result">`;
+                html += `<h5>Análise: ${data.data.grace.analysis_type}</h5>`;
+                
+                html += `<div class="grace-indicators">`;
+                html += `<div class="grace-indicator">
+                    <strong>Anomalia Atual:</strong><br>
+                    ${data.data.grace.current_anomaly ? data.data.grace.current_anomaly.toFixed(2) + ' cm' : 'N/A'}
+                </div>`;
+                html += `<div class="grace-indicator">
+                    <strong>Tendência:</strong><br>
+                    ${data.data.grace.trend ? data.data.grace.trend.toFixed(3) + ' cm/ano' : 'N/A'}
+                </div>`;
+                html += `<div class="grace-indicator">
+                    <strong>Variação Máxima:</strong><br>
+                    ${data.data.grace.max_variation ? data.data.grace.max_variation.toFixed(2) + ' cm' : 'N/A'}
+                </div>`;
+                html += `<div class="grace-indicator">
+                    <strong>Confiança:</strong><br>
+                    ${data.data.grace.confidence ? (data.data.grace.confidence * 100).toFixed(1) + '%' : 'N/A'}
+                </div>`;
+                html += `</div>`;
+                
+                if (data.data.grace.interpretation) {
+                    html += `<p><strong>Interpretação:</strong> ${data.data.grace.interpretation}</p>`;
+                }
+                
+                // Amostra de dados temporais
+                if (data.data.grace.time_series && data.data.grace.time_series.length > 0) {
+                    html += `<div style="margin-top: 10px;"><strong>Série Temporal (amostra):</strong></div>`;
+                    const sample = data.data.grace.time_series.slice(0, 5);
+                    sample.forEach(point => {
+                        html += `<div style="font-size: 12px;">${point.date}: ${point.anomaly ? point.anomaly.toFixed(2) + ' cm' : 'N/A'}</div>`;
+                    });
+                }
+                
+                html += `</div>`;
+            }
+            
+            // Resultados por sensor
+            html += `<h4>📡 Dados por Sensor</h4>`;
+            
+            for (const [sensor, sensorData] of Object.entries(data.data)) {
+                if (sensor === 'grace') continue; // GRACE já foi tratado acima
+                
+                html += `<div class="sensor-result">`;
+                html += `<h5>${getSensorIcon(sensor)} ${sensor.toUpperCase()} (${sensorData.length} observações)</h5>`;
+                
+                // Amostra de dados
+                if (sensorData && sensorData.length > 0) {
+                    const sample = sensorData.slice(0, 3);
+                    html += `<div style="font-size: 12px; margin-top: 10px;">`;
+                    sample.forEach(point => {
+                        html += `<div>${point.date}: ${formatSensorData(point, sensor)}</div>`;
+                    });
+                    if (sensorData.length > 3) {
+                        html += `<div>... mais ${sensorData.length - 3} pontos</div>`;
+                    }
+                    html += `</div>`;
+                }
+                
+                html += `</div>`;
+            }
+            
+            // Eventos detectados
+            html += `<h4>🌊 Eventos Detectados</h4>`;
+            
+            if (data.events && data.events.length > 0) {
+                data.events.forEach((event, index) => {
+                    html += `<div class="event">
+                        <strong>Evento ${index + 1} (${event.sensor})</strong><br>
+                        <strong>Tipo:</strong> ${event.type}<br>
+                        <strong>Período:</strong> ${event.start} a ${event.end}<br>
+                        <strong>Duração:</strong> ${event.duration_days} dias<br>
+                        <strong>Severidade:</strong> ${event.severity}<br>
+                        <strong>Confiança:</strong> ${(event.confidence * 100).toFixed(1)}%
+                    </div>`;
+                });
+            } else {
+                html += `<div class="sensor-result">Nenhum evento significativo detectado.</div>`;
+            }
+            
+            // Resumo
+            html += `<h4>📋 Resumo da Análise</h4>`;
+            html += `<div class="sensor-result">`;
+            html += `<p><strong>Total de Eventos:</strong> ${data.summary.total_events}</p>`;
+            html += `<p><strong>Tipos de Eventos:</strong> ${data.summary.event_types.join(', ')}</p>`;
+            html += `<p><strong>Sensores com Eventos:</strong> ${data.summary.sensors_with_events.join(', ')}</p>`;
+            html += `</div>`;
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        function getSensorIcon(sensor) {
+            const icons = {
+                'landsat': '🛰️',
+                'modis': '🌊', 
+                'viirs': '🌙',
+                'smap': '💧',
+                'grace': '⚖️'
+            };
+            return icons[sensor] || '📡';
+        }
+        
+        function formatSensorData(point, sensor) {
+            if (sensor === 'landsat') {
+                return `NDVI: ${point.NDVI ? point.NDVI.toFixed(3) : 'N/A'}`;
+            } else if (sensor === 'modis') {
+                return `Clorofila: ${point.chlorophyll ? point.chlorophyll.toFixed(3) : 'N/A'}, SST: ${point.sst ? point.sst.toFixed(1) + '°C' : 'N/A'}`;
+            } else if (sensor === 'viirs') {
+                return `NDVI: ${point.NDVI ? point.NDVI.toFixed(3) : 'N/A'}`;
+            } else if (sensor === 'smap') {
+                return `Umidade: ${point.soil_moisture ? (point.soil_moisture * 100).toFixed(1) + '%' : 'N/A'}`;
+            }
+            return JSON.stringify(point);
+        }
+    </script>
+</body>
+</html>

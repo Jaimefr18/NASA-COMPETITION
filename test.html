@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Detector de Florações - Multi-Sensor com GRACE</title>
+    <title>Detector de Florações - Multi-Sensor com GRACE e IA</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -60,10 +60,21 @@
             margin: 10px 0;
         }
         button:hover { background: #2980b9; }
+        button.secondary { background: #95a5a6; }
+        button.secondary:hover { background: #7f8c8d; }
+        button.success { background: #27ae60; }
+        button.success:hover { background: #219a52; }
+        button.warning { background: #f39c12; }
+        button.warning:hover { background: #e67e22; }
+        
         #result { margin-top: 20px; }
         .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
         .status.demo { background: #fff3cd; color: #856404; }
         .status.real { background: #d4edda; color: #155724; }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .status.warning { background: #fff3cd; color: #856404; }
+        .status.ml { background: #e8f4f8; color: #2c3e50; border-left: 4px solid #3498db; }
+        
         .sensor-result { 
             background: #f8f9fa; 
             margin: 15px 0; 
@@ -90,14 +101,85 @@
             border-radius: 5px;
             text-align: center;
         }
+        .ml-prediction {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .risk-level { 
+            font-size: 24px; 
+            font-weight: bold; 
+            margin: 10px 0;
+            text-align: center;
+        }
+        .risk-low { color: #27ae60; }
+        .risk-moderate { color: #f39c12; }
+        .risk-high { color: #e74c3c; }
+        .risk-very-high { color: #c0392b; }
+        
+        .tab-container {
+            margin: 20px 0;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #3498db;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #ecf0f1;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab.active {
+            background: #3498db;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            background: white;
+            border: 1px solid #bdc3c7;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        .model-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .model-card {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .progress-bar {
+            background: #bdc3c7;
+            border-radius: 10px;
+            height: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #27ae60;
+            transition: width 0.3s;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌊 Detector de Florações - Multi-Sensor com GRACE</h1>
+        <h1>🧠 Detector de Florações - Multi-Sensor com GRACE e IA</h1>
         
         <div class="status demo" id="statusHeader">
-            <strong>Selecione os sensores para análise</strong>
+            <strong>Selecione os sensores para análise com Machine Learning</strong>
         </div>
         
         <div class="sensor-grid" id="sensorGrid">
@@ -157,9 +239,18 @@
             </select>
         </div>
         
-        <button onclick="analyze()">🔍 Analisar com Sensores Selecionados</button>
-        <button onclick="checkStatus()" style="background: #95a5a6;">📊 Status do Sistema</button>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="include_ml" checked> 
+                Incluir predições de Machine Learning
+            </label>
+        </div>
         
+        <button onclick="analyze()" class="success">🧠 Analisar com IA</button>
+        <button onclick="trainModels()" class="warning">⚡ Treinar Modelos de IA</button>
+        <button onclick="checkStatus()" class="secondary">📊 Status do Sistema</button>
+        <button onclick="checkMLStatus()" class="info">🤖 Status da IA</button>
+        <button onclick="showDataStats()" class="info">📊 Estatísticas dos Dados</button>
         <div id="result"></div>
     </div>
 
@@ -202,9 +293,10 @@
             const end = document.getElementById('end').value;
             const buffer_km = parseFloat(document.getElementById('buffer_km').value);
             const grace_analysis = document.getElementById('grace_analysis').value;
+            const include_ml = document.getElementById('include_ml').checked;
             
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<div class="status">⏳ Analisando com múltiplos sensores incluindo GRACE...</div>';
+            resultDiv.innerHTML = '<div class="status info">🧠 Analisando com IA e múltiplos sensores incluindo GRACE...</div>';
             
             try {
                 const response = await fetch(`${API_BASE}/analyze`, {
@@ -219,7 +311,8 @@
                         end: end,
                         buffer_km: buffer_km,
                         sensors: selectedSensors,
-                        grace_analysis: grace_analysis
+                        grace_analysis: grace_analysis,
+                        include_ml_predictions: include_ml
                     })
                 });
                 
@@ -237,22 +330,134 @@
             }
         }
         
+        async function trainModels() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="status info">⚡ Treinando modelos de Machine Learning...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/train-models`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        min_data_points: 50,
+                        retrain: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = `
+                        <div class="status real">
+                            <h3>✅ Modelos Treinados com Sucesso!</h3>
+                            <p><strong>Acurácia da Classificação:</strong> ${(data.classification_accuracy * 100).toFixed(1)}%</p>
+                            <p><strong>MSE da Regressão:</strong> ${data.regression_mse ? data.regression_mse.toFixed(4) : 'N/A'}</p>
+                            <p><strong>Amostras de Treino:</strong> ${data.training_samples}</p>
+                            <p><strong>Eventos Positivos:</strong> ${data.positive_events}</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status warning">
+                            <h3>⚠️ ${data.status === 'insufficient_data' ? 'Dados Insuficientes' : 'Erro no Treinamento'}</h3>
+                            <p>${data.message}</p>
+                            <p><strong>Dados disponíveis:</strong> ${data.available_data_points || 0}</p>
+                            <p><strong>Dados necessários:</strong> ${data.required_data_points || 50}</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status" style="background:#f8d7da;color:#721c24;">
+                    ❌ Erro no treinamento: ${error.message}
+                </div>`;
+            }
+        }
+        
+        async function showDataStats() {
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = '<div class="status info">📊 Carregando estatísticas...</div>';
+    
+    try {
+        const response = await fetch(`${API_BASE}/data/stats`);
+        const data = await response.json();
+        
+        let html = `<h3>📊 Estatísticas dos Dados Coletados</h3>`;
+        html += `<div class="status real">`;
+        html += `<strong>Total de Análises:</strong> ${data.total_analyses}<br>`;
+        html += `<strong>Total de Eventos Detectados:</strong> ${data.total_events}<br>`;
+        html += `<strong>Período dos Dados:</strong> ${data.data_period.earliest} à ${data.data_period.latest}`;
+        html += `</div>`;
+        
+        html += `<h4>📡 Sensores Utilizados</h4>`;
+        html += `<div class="sensor-result">`;
+        for (const [sensor, count] of Object.entries(data.sensors_count)) {
+            html += `<div>${sensor}: ${count} análises</div>`;
+        }
+        html += `</div>`;
+        
+        // Botões de ação
+        html += `<div style="margin-top: 20px;">`;
+        html += `<button onclick="exportData()" class="secondary">📥 Exportar Dados (CSV)</button>`;
+        html += `<button onclick="listAnalyses()" class="info">📋 Listar Análises</button>`;
+        html += `</div>`;
+        
+        resultDiv.innerHTML = html;
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="status warning">❌ Erro: ${error.message}</div>`;
+    }
+}
+
+async function exportData() {
+    try {
+        const response = await fetch(`${API_BASE}/data/export`);
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bloom_data_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+    } catch (error) {
+        alert(`Erro ao exportar: ${error.message}`);
+    }
+}
+
         async function checkStatus() {
             const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = '<div class="status">📡 Verificando status...</div>';
+            resultDiv.innerHTML = '<div class="status info">📡 Verificando status do sistema...</div>';
             
             try {
                 const response = await fetch(`${API_BASE}/health`);
                 const data = await response.json();
                 
                 resultDiv.innerHTML = `
-                    <h3>Status do Sistema Multi-Sensor</h3>
+                    <h3>📊 Status do Sistema Multi-Sensor com IA</h3>
                     <div class="status ${data.earth_engine.working ? 'real' : 'demo'}">
-                        🌍 <strong>Earth Engine:</strong> ${data.earth_engine.working ? 'CONECTADO' : 'MODO DEMO'}
+                        🌍 <strong>Earth Engine:</strong> ${data.earth_engine.working ? '✅ CONECTADO' : '🔬 MODO DEMO'}
+                    </div>
+                    <div class="status ${data.ml_model.is_trained ? 'real' : 'warning'}">
+                        🤖 <strong>Machine Learning:</strong> ${data.ml_model.is_trained ? '✅ MODELO TREINADO' : '⚠️ PRECISA TREINAR'}
                     </div>
                     <div class="sensor-result">
-                        <strong>Sensores Disponíveis:</strong><br>
+                        <strong>📡 Sensores Disponíveis:</strong><br>
                         ${data.sensors.map(sensor => `• ${sensor}`).join('<br>')}
+                    </div>
+                    <div class="model-status">
+                        <div class="model-card">
+                            <strong>Modelos Treinados</strong><br>
+                            ${data.ml_model.trained_models.length} modelos
+                        </div>
+                        <div class="model-card">
+                            <strong>Pontos de Dados</strong><br>
+                            ${data.ml_model.training_data_points} pontos
+                        </div>
                     </div>
                 `;
                 
@@ -263,31 +468,137 @@
             }
         }
         
+        async function checkMLStatus() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div class="status info">🤖 Verificando status da IA...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/ml-status`);
+                const data = await response.json();
+                
+                let modelsHtml = '';
+                if (data.model_metadata) {
+                    for (const [modelName, metadata] of Object.entries(data.model_metadata)) {
+                        modelsHtml += `
+                            <div class="model-card">
+                                <strong>${modelName}</strong><br>
+                                Tipo: ${metadata.type}<br>
+                                ${metadata.type === 'classification' ? `Acurácia: ${(metadata.accuracy * 100).toFixed(1)}%` : `MSE: ${metadata.mse.toFixed(4)}`}<br>
+                                Features: ${metadata.features_count}<br>
+                                Treinado: ${new Date(metadata.trained_at).toLocaleDateString()}
+                            </div>
+                        `;
+                    }
+                }
+                
+                resultDiv.innerHTML = `
+                    <h3>🤖 Status do Modelo de Machine Learning</h3>
+                    <div class="status ${data.is_trained ? 'real' : 'warning'}">
+                        ${data.is_trained ? '✅ MODELO TREINADO' : '⚠️ AGUARDANDO TREINAMENTO'}
+                    </div>
+                    <div class="model-status">
+                        <div class="model-card">
+                            <strong>Treinado</strong><br>
+                            ${data.is_trained ? '✅ Sim' : '❌ Não'}
+                        </div>
+                        <div class="model-card">
+                            <strong>Modelos</strong><br>
+                            ${data.trained_models.length} modelos
+                        </div>
+                        <div class="model-card">
+                            <strong>Dados</strong><br>
+                            ${data.training_data_points} pontos
+                        </div>
+                    </div>
+                    <div class="model-status">
+                        ${modelsHtml}
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status" style="background:#f8d7da;color:#721c24;">
+                    ❌ Erro ao verificar status da IA: ${error.message}
+                </div>`;
+            }
+        }
+        
         function displayResults(data) {
             const resultDiv = document.getElementById('result');
             
-            let html = `<h3>📈 Resultados Multi-Sensor com GRACE</h3>`;
+            let html = `
+                <h3>🧠 Resultados Multi-Sensor com GRACE e IA</h3>
+                <div class="tab-container">
+                    <div class="tabs">
+                        <div class="tab active" onclick="switchTab('overview')">Visão Geral</div>
+                        <div class="tab" onclick="switchTab('sensors')">Sensores</div>
+                        <div class="tab" onclick="switchTab('events')">Eventos</div>
+                        ${data.ml_predictions ? '<div class="tab" onclick="switchTab(\'ml\')">🤖 Predições IA</div>' : ''}
+                    </div>
+                    
+                    <div id="overview" class="tab-content active">
+            `;
             
             // Status do sistema
             const statusHeader = document.getElementById('statusHeader');
             if (data.earth_engine_status.working) {
                 statusHeader.className = 'status real';
-                statusHeader.innerHTML = '<strong>✅ Earth Engine REAL:</strong> Dados de satélite em tempo real';
+                statusHeader.innerHTML = '<strong>✅ Earth Engine REAL:</strong> Dados de satélite em tempo real com IA';
             } else {
                 statusHeader.className = 'status demo';
-                statusHeader.innerHTML = '<strong>🔬 Modo Demonstração:</strong> Dados simulados de alta qualidade';
+                statusHeader.innerHTML = '<strong>🔬 Modo Demonstração:</strong> Dados simulados com IA';
             }
             
             html += `<div class="status ${data.earth_engine_status.working ? 'real' : 'demo'}">`;
             html += `🛰️ <strong>Sensores usados:</strong> ${data.sensors_used.join(', ').toUpperCase()}`;
             html += ` | 📊 <strong>Eventos detectados:</strong> ${data.summary.total_events}`;
+            if (data.ml_predictions && data.ml_predictions.bloom_risk_probability) {
+                html += ` | 🤖 <strong>Risco IA:</strong> ${(data.ml_predictions.bloom_risk_probability * 100).toFixed(1)}%`;
+            }
             html += `</div>`;
+            
+            // Predições de ML
+            if (data.ml_predictions && !data.ml_predictions.error) {
+                const riskLevel = data.ml_predictions.risk_level.toLowerCase().replace(' ', '-');
+                html += `
+                    <div class="ml-prediction">
+                        <h4>🧠 Predição de Machine Learning</h4>
+                        <div class="risk-level ${riskLevel}">
+                            Probabilidade de Floração: ${(data.ml_predictions.bloom_risk_probability * 100).toFixed(1)}%
+                        </div>
+                        <div style="text-align: center; font-size: 20px; margin: 10px 0;">
+                            Nível de Risco: <strong>${data.ml_predictions.risk_level}</strong>
+                        </div>
+                        ${data.ml_predictions.predicted_intensity ? `
+                            <div style="text-align: center;">
+                                Intensidade Prevista: <strong>${data.ml_predictions.intensity_level}</strong>
+                                (${data.ml_predictions.predicted_intensity.toFixed(3)})
+                            </div>
+                        ` : ''}
+                        <div style="text-align: center; margin-top: 10px;">
+                            Previsão para: ${data.ml_predictions.prediction_date}
+                        </div>
+                    </div>
+                `;
+            } else if (data.ml_predictions && data.ml_predictions.error) {
+                html += `
+                    <div class="status warning">
+                        <strong>⚠️ IA Não Disponível:</strong> ${data.ml_predictions.message || data.ml_predictions.error}
+                    </div>
+                `;
+            }
+            
+            html += `</div>`; // Fecha overview
+            
+            // Tab Sensores
+            html += `
+                <div id="sensors" class="tab-content">
+                    <h4>📡 Dados dos Sensores</h4>
+            `;
             
             // Dados GRACE específicos
             if (data.data.grace) {
-                html += `<h4>⚖️ Dados GRACE/GRACE-FO</h4>`;
                 html += `<div class="sensor-result">`;
-                html += `<h5>Análise: ${data.data.grace.analysis_type}</h5>`;
+                html += `<h5>⚖️ GRACE/GRACE-FO - ${data.data.grace.analysis_type}</h5>`;
                 
                 html += `<div class="grace-indicators">`;
                 html += `<div class="grace-indicator">
@@ -299,10 +610,6 @@
                     ${data.data.grace.trend ? data.data.grace.trend.toFixed(3) + ' cm/ano' : 'N/A'}
                 </div>`;
                 html += `<div class="grace-indicator">
-                    <strong>Variação Máxima:</strong><br>
-                    ${data.data.grace.max_variation ? data.data.grace.max_variation.toFixed(2) + ' cm' : 'N/A'}
-                </div>`;
-                html += `<div class="grace-indicator">
                     <strong>Confiança:</strong><br>
                     ${data.data.grace.confidence ? (data.data.grace.confidence * 100).toFixed(1) + '%' : 'N/A'}
                 </div>`;
@@ -311,29 +618,16 @@
                 if (data.data.grace.interpretation) {
                     html += `<p><strong>Interpretação:</strong> ${data.data.grace.interpretation}</p>`;
                 }
-                
-                // Amostra de dados temporais
-                if (data.data.grace.time_series && data.data.grace.time_series.length > 0) {
-                    html += `<div style="margin-top: 10px;"><strong>Série Temporal (amostra):</strong></div>`;
-                    const sample = data.data.grace.time_series.slice(0, 5);
-                    sample.forEach(point => {
-                        html += `<div style="font-size: 12px;">${point.date}: ${point.anomaly ? point.anomaly.toFixed(2) + ' cm' : 'N/A'}</div>`;
-                    });
-                }
-                
                 html += `</div>`;
             }
             
-            // Resultados por sensor
-            html += `<h4>📡 Dados por Sensor</h4>`;
-            
+            // Outros sensores
             for (const [sensor, sensorData] of Object.entries(data.data)) {
-                if (sensor === 'grace') continue; // GRACE já foi tratado acima
+                if (sensor === 'grace') continue;
                 
                 html += `<div class="sensor-result">`;
                 html += `<h5>${getSensorIcon(sensor)} ${sensor.toUpperCase()} (${sensorData.length} observações)</h5>`;
                 
-                // Amostra de dados
                 if (sensorData && sensorData.length > 0) {
                     const sample = sensorData.slice(0, 3);
                     html += `<div style="font-size: 12px; margin-top: 10px;">`;
@@ -345,12 +639,16 @@
                     }
                     html += `</div>`;
                 }
-                
                 html += `</div>`;
             }
             
-            // Eventos detectados
-            html += `<h4>🌊 Eventos Detectados</h4>`;
+            html += `</div>`; // Fecha sensors
+            
+            // Tab Eventos
+            html += `
+                <div id="events" class="tab-content">
+                    <h4>🌊 Eventos Detectados</h4>
+            `;
             
             if (data.events && data.events.length > 0) {
                 data.events.forEach((event, index) => {
@@ -366,16 +664,38 @@
             } else {
                 html += `<div class="sensor-result">Nenhum evento significativo detectado.</div>`;
             }
+            html += `</div>`; // Fecha events
             
-            // Resumo
-            html += `<h4>📋 Resumo da Análise</h4>`;
-            html += `<div class="sensor-result">`;
-            html += `<p><strong>Total de Eventos:</strong> ${data.summary.total_events}</p>`;
-            html += `<p><strong>Tipos de Eventos:</strong> ${data.summary.event_types.join(', ')}</p>`;
-            html += `<p><strong>Sensores com Eventos:</strong> ${data.summary.sensors_with_events.join(', ')}</p>`;
-            html += `</div>`;
+            // Tab ML
+            if (data.ml_predictions) {
+                html += `
+                    <div id="ml" class="tab-content">
+                        <h4>🤖 Detalhes da Predição de IA</h4>
+                        <div class="status ml">
+                            <strong>Status do Modelo:</strong><br>
+                            ${data.ml_model_status ? JSON.stringify(data.ml_model_status, null, 2) : 'Informações não disponíveis'}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`; // Fecha tab-container
             
             resultDiv.innerHTML = html;
+        }
+        
+        function switchTab(tabName) {
+            // Esconde todas as tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Mostra a tab selecionada
+            document.getElementById(tabName).classList.add('active');
+            event.currentTarget.classList.add('active');
         }
         
         function getSensorIcon(sensor) {
